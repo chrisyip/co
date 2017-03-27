@@ -9,6 +9,33 @@
   Generator based control flow goodness for nodejs and the browser,
   using promises, letting you write non-blocking code in a nice-ish way.
 
+## NOTE
+
+This package is used for debugging co issue, coz `You may only yield a function, promise, generator, array, or object` doesn't make any sense.
+
+How to use:
+
+```
+npm i chrisyip/co
+```
+
+```
+CO_DEBUG=true node YOUR_SCRIPT.js
+```
+
+```js
+co(function* () {
+  yield undefined;
+});
+```
+
+```
+TypeError: You may only yield a function, promise, generator, array, or object, but the following object was passed: "undefined":
+function* () {
+  yield undefined
+}
+```
+
 ## Co v4
 
   `co@4.0.0` has been released, which now relies on promises.

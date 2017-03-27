@@ -1,3 +1,4 @@
+var esprima = require('esprima')
 
 /**
  * slice() reference.
@@ -48,7 +49,15 @@ function co(gen) {
   // which leads to memory leak errors.
   // see https://github.com/tj/co/issues/180
   return new Promise(function(resolve, reject) {
-    if (typeof gen === 'function') gen = gen.apply(ctx, args);
+    var genBody, yieldCount = -1;
+
+    if (typeof gen === 'function') {
+      if (process.env.CO_DEBUG) {
+        genBody = gen.toString();
+      }
+
+      gen = gen.apply(ctx, args);
+    }
     if (!gen || typeof gen.next !== 'function') return resolve(gen);
 
     onFulfilled();
@@ -96,11 +105,38 @@ function co(gen) {
      */
 
     function next(ret) {
+      yieldCount++;
+
       if (ret.done) return resolve(ret.value);
       var value = toPromise.call(ctx, ret.value);
       if (value && isPromise(value)) return value.then(onFulfilled, onRejected);
-      return onRejected(new TypeError('You may only yield a function, promise, generator, array, or object, '
-        + 'but the following object was passed: "' + String(ret.value) + '"'));
+
+      var msg = 'You may only yield a function, promise, generator, array, or object, '
+                  + 'but the following object was passed: "' + String(ret.value) + '"'
+
+      if (genBody) {
+        var tokens = esprima.tokenize(genBody, { loc: true });
+        var count = -1;
+
+        for (var i = 0; i < tokens.length; i++) {
+          var token = tokens[i];
+          if (token.type === 'Keyword' && token.value === 'yield') {
+            count++;
+          }
+
+          if (count === yieldCount) {
+            var start = token.loc.start.line - 3;
+            if (start < 0) start = 0;
+
+            msg += ':\n' + genBody.split('\n').slice(
+              start, token.loc.start.line + 3
+            ).join('\n');
+            break;
+          }
+        }
+      }
+
+      return onRejected(new TypeError(msg));
     }
   });
 }
@@ -218,7 +254,7 @@ function isGenerator(obj) {
  * @return {Boolean}
  * @api private
  */
- 
+
 function isGeneratorFunction(obj) {
   var constructor = obj.constructor;
   if (!constructor) return false;
